@@ -501,7 +501,7 @@ macro_rules! hal {
 
                 /// Retrieves the value of the auto-reload register.
                 pub fn arr(&self) -> u16 {
-                    self.tim.arr.read().arr().bits()
+                    self.tim.read_auto_reload()
                 }
 
                 /// Retrieves the current timer counter value.
@@ -510,15 +510,15 @@ macro_rules! hal {
                 }
 
                 /// Stops the timer
-                pub fn stop(self) -> Timer<$TIMX> {
-                    self.tim.cr1.modify(|_, w| w.cen().clear_bit());
+                pub fn stop(mut self) -> Timer<$TIMX> {
+                    self.tim.disable_counter();
                     let Self { tim, clk } = self;
                     Timer { tim, clk }
                 }
 
                 /// Clears Update Interrupt Flag
                 pub fn clear_update_interrupt_flag(&mut self) {
-                    self.tim.sr.modify(|_, w| w.uif().clear_bit());
+                    self.tim.clear_update_interrupt_flag();
                 }
 
                 /// Releases the TIM Peripheral

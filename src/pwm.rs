@@ -367,8 +367,9 @@ macro_rules! hal {
                     }
                 }
 
+                /// If `0` returned means max_duty is 2^16
                 fn get_max_duty(&self) -> Self::Duty {
-                    unsafe { (*$TIMX::ptr()).arr.read().arr().bits() }
+                    unsafe { (*$TIMX::ptr()).arr.read().arr().bits().wrapping_add(1) }
                 }
 
                 fn get_period(&self) -> Self::Time {
@@ -407,8 +408,9 @@ macro_rules! hal {
                     unsafe { (*$TIMX::ptr()).ccr1.read().ccr().bits() }
                 }
 
+                /// If `0` returned means max_duty is 2^16
                 fn get_max_duty(&self) -> u16 {
-                    unsafe { (*$TIMX::ptr()).arr.read().arr().bits() }
+                    unsafe { (*$TIMX::ptr()).arr.read().arr().bits().wrapping_add(1) }
                 }
 
                 fn set_duty(&mut self, duty: u16) {
@@ -431,8 +433,9 @@ macro_rules! hal {
                     unsafe { (*$TIMX::ptr()).ccr2.read().ccr().bits() }
                 }
 
+                /// If `0` returned means max_duty is 2^16
                 fn get_max_duty(&self) -> u16 {
-                    unsafe { (*$TIMX::ptr()).arr.read().arr().bits() }
+                    unsafe { (*$TIMX::ptr()).arr.read().arr().bits().wrapping_add(1) }
                 }
 
                 fn set_duty(&mut self, duty: u16) {
@@ -455,8 +458,9 @@ macro_rules! hal {
                     unsafe { (*$TIMX::ptr()).ccr3.read().ccr().bits() }
                 }
 
+                /// If `0` returned means max_duty is 2^16
                 fn get_max_duty(&self) -> u16 {
-                    unsafe { (*$TIMX::ptr()).arr.read().arr().bits() }
+                    unsafe { (*$TIMX::ptr()).arr.read().arr().bits().wrapping_add(1) }
                 }
 
                 fn set_duty(&mut self, duty: u16) {
@@ -479,8 +483,9 @@ macro_rules! hal {
                     unsafe { (*$TIMX::ptr()).ccr4.read().ccr().bits() }
                 }
 
+                /// If `0` returned means max_duty is 2^16
                 fn get_max_duty(&self) -> u16 {
-                    unsafe { (*$TIMX::ptr()).arr.read().arr().bits() }
+                    unsafe { (*$TIMX::ptr()).arr.read().arr().bits().wrapping_add(1) }
                 }
 
                 fn set_duty(&mut self, duty: u16) {
