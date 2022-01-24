@@ -53,6 +53,7 @@
   ```
 */
 
+use core::convert::TryInto;
 use core::marker::Copy;
 use core::marker::PhantomData;
 
@@ -62,14 +63,14 @@ use crate::pac::TIM1;
 #[cfg(feature = "medium")]
 use crate::pac::TIM4;
 use crate::pac::{TIM2, TIM3};
-use cast::{u16, u32};
+use cast::u32;
 
 use crate::afio::MAPR;
 use crate::bb;
 use crate::gpio::{self, Alternate};
 use crate::time::Hertz;
 use crate::time::U32Ext;
-use crate::timer::Timer;
+use crate::timer::{compute_arr_presc, General, Timer};
 
 pub trait Pins<REMAP, P> {
     const C1: bool = false;
@@ -254,7 +255,7 @@ macro_rules! hal {
     ($($TIMX:ident: ($timX:ident),)+) => {
         $(
             fn $timX<REMAP, P, PINS>(
-                tim: $TIMX,
+                mut tim: $TIMX,
                 _pins: PINS,
                 freq: Hertz,
                 clk: Hertz,
@@ -282,11 +283,9 @@ macro_rules! hal {
                     tim.ccmr2_output()
                         .modify(|_, w| w.oc4pe().set_bit().oc4m().pwm_mode1() );
                 }
-                let ticks = clk.0 / freq.0;
-                let psc = u16(ticks / (1 << 16)).unwrap();
-                tim.psc.write(|w| w.psc().bits(psc) );
-                let arr = u16(ticks / u32(psc + 1)).unwrap();
-                tim.arr.write(|w| w.arr().bits(arr));
+                let (psc, arr) = compute_arr_presc(freq.0, clk.0);
+                tim.set_prescaler(psc);
+                tim.set_auto_reload(arr).unwrap();
 
                 // The psc register is buffered, so we trigger an update event to update it
                 // Sets the URS bit to prevent an interrupt from being triggered by the UG bit
@@ -385,12 +384,10 @@ macro_rules! hal {
                     T: Into<Self::Time> {
                         let clk = self.clk;
 
-                        let ticks = clk.0 / period.into().0;
-                        let psc = u16(ticks / (1 << 16)).unwrap();
-                        let arr = u16(ticks / u32(psc + 1)).unwrap();
+                        let (psc, arr) = compute_arr_presc(period.into().0, clk.0);
                         unsafe {
                             (*$TIMX::ptr()).psc.write(|w| w.psc().bits(psc));
-                            (*$TIMX::ptr()).arr.write(|w| w.arr().bits(arr));
+                            (*$TIMX::ptr()).arr.write(|w| w.arr().bits(arr.try_into().unwrap()));
                         }
                 }
             }

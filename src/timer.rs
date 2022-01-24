@@ -67,17 +67,15 @@ use crate::pac::TIM8;
 use crate::pac::{DBGMCU as DBG, TIM2, TIM3};
 #[cfg(feature = "stm32f100")]
 use crate::pac::{TIM15, TIM16, TIM17};
+use core::convert::TryInto;
 
 use crate::rcc::{self, Clocks};
-use cast::{u16, u32, u64};
+use cast::{u32, u64};
 use cortex_m::peripheral::syst::SystClkSource;
 use cortex_m::peripheral::SYST;
 use void::Void;
 
 use crate::time::Hertz;
-
-#[cfg(feature = "rtic")]
-mod monotonic;
 
 /// Interrupt events
 pub enum Event {
@@ -89,6 +87,7 @@ pub enum Event {
 pub enum Error {
     /// Timer is canceled
     Canceled,
+    WrongAutoReload,
 }
 
 pub struct Timer<TIM> {
@@ -110,7 +109,27 @@ pub(crate) mod sealed {
     pub trait Ch2<REMAP> {}
     pub trait Ch3<REMAP> {}
     pub trait Ch4<REMAP> {}
+
+    pub trait General {
+        type Width: Into<u32>;
+        fn max_auto_reload() -> u32;
+        fn enable_counter(&mut self);
+        fn disable_counter(&mut self);
+        fn is_counter_enabled(&self) -> bool;
+        fn reset_counter(&mut self);
+        fn set_prescaler(&mut self, psc: u16);
+        fn set_auto_reload(&mut self, arr: u32) -> Result<(), super::Error>;
+        fn trigger_update(&mut self);
+        fn clear_update_interrupt_flag(&mut self);
+        fn listen_update_interrupt(&mut self, b: bool);
+        fn get_update_interrupt_flag(&self) -> bool;
+        fn read_count(&self) -> Self::Width;
+        fn read_auto_reload(&self) -> Self::Width;
+        fn start_one_pulse(&mut self);
+        fn cr1_reset(&mut self);
+    }
 }
+pub(crate) use sealed::General;
 
 macro_rules! remap {
     ($($name:ident: ($TIMX:ident, $state:literal, $P1:ident, $P2:ident, $P3:ident, $P4:ident),)+) => {
@@ -278,7 +297,10 @@ impl Cancel for CountDownTimer<SYST> {
 
 impl Periodic for CountDownTimer<SYST> {}
 
-pub trait Instance: crate::Sealed + rcc::Enable + rcc::Reset + rcc::BusTimerClock {}
+pub trait Instance:
+    crate::Sealed + rcc::Enable + rcc::Reset + rcc::BusTimerClock + General
+{
+}
 
 impl<TIM> Timer<TIM>
 where
@@ -317,6 +339,79 @@ macro_rules! hal {
     ($($TIMX:ident: ($timX:ident, $APBx:ident, $dbg_timX_stop:ident$(,$master_timbase:ident)*),)+) => {
         $(
             impl Instance for $TIMX { }
+
+            impl General for $TIMX {
+                type Width = u16;
+
+                #[inline(always)]
+                fn max_auto_reload() -> u32 {
+                    u16::MAX as u32
+                }
+                #[inline(always)]
+                fn enable_counter(&mut self) {
+                    self.cr1.modify(|_, w| w.cen().set_bit());
+                }
+                #[inline(always)]
+                fn disable_counter(&mut self) {
+                    self.cr1.modify(|_, w| w.cen().clear_bit());
+                }
+                #[inline(always)]
+                fn is_counter_enabled(&self) -> bool {
+                    self.cr1.read().cen().is_enabled()
+                }
+                #[inline(always)]
+                fn reset_counter(&mut self) {
+                    self.cnt.reset();
+                }
+                #[inline(always)]
+                fn set_prescaler(&mut self, psc: u16) {
+                    self.psc.write(|w| w.psc().bits(psc) );
+                }
+                #[inline(always)]
+                fn set_auto_reload(&mut self, arr: u32) -> Result<(), Error> {
+                    // Note: Make it impossible to set the ARR value to 0, since this
+                    // would cause an infinite loop.
+                    if arr > 0 && arr <= Self::max_auto_reload() {
+                        Ok(self.arr.write(|w| unsafe { w.bits(arr) }))
+                    } else {
+                        Err(Error::WrongAutoReload)
+                    }
+                }
+                #[inline(always)]
+                fn trigger_update(&mut self) {
+                    self.cr1.modify(|_, w| w.urs().set_bit());
+                    self.egr.write(|w| w.ug().set_bit());
+                    self.cr1.modify(|_, w| w.urs().clear_bit());
+                }
+                #[inline(always)]
+                fn clear_update_interrupt_flag(&mut self) {
+                    self.sr.write(|w| w.uif().clear_bit());
+                }
+                #[inline(always)]
+                fn listen_update_interrupt(&mut self, b: bool) {
+                    self.dier.write(|w| w.uie().bit(b));
+                }
+                #[inline(always)]
+                fn get_update_interrupt_flag(&self) -> bool {
+                    self.sr.read().uif().bit_is_clear()
+                }
+                #[inline(always)]
+                fn read_count(&self) -> Self::Width {
+                    self.cnt.read().bits() as Self::Width
+                }
+                #[inline(always)]
+                fn read_auto_reload(&self) -> Self::Width {
+                    self.arr.read().bits() as Self::Width
+                }
+                #[inline(always)]
+                fn start_one_pulse(&mut self) {
+                    self.cr1.write(|w| w.opm().set_bit().cen().set_bit());
+                }
+                #[inline(always)]
+                fn cr1_reset(&mut self) {
+                    self.cr1.reset();
+                }
+            }
 
             impl Timer<$TIMX> {
                 /// Initialize timer
@@ -467,7 +562,7 @@ macro_rules! hal {
                     T: Into<Hertz>,
                 {
                     let (psc, arr) = compute_arr_presc(timeout.into().0, self.clk.0);
-                    self.restart_raw(psc, arr);
+                    self.restart_raw(psc, arr.try_into().unwrap());
                 }
 
                 fn wait(&mut self) -> nb::Result<(), Void> {
@@ -502,10 +597,12 @@ macro_rules! hal {
 }
 
 #[inline(always)]
-fn compute_arr_presc(freq: u32, clock: u32) -> (u16, u16) {
+pub(crate) const fn compute_arr_presc(freq: u32, clock: u32) -> (u16, u32) {
     let ticks = clock / freq;
-    let psc = u16((ticks - 1) / (1 << 16)).unwrap();
-    let arr = u16(ticks / u32(psc + 1)).unwrap();
+    let psc_u32 = (ticks - 1) / (1 << 16);
+    assert!(psc_u32 <= u16::MAX as u32);
+    let psc = psc_u32 as u16;
+    let arr = ticks / (psc_u32 + 1) - 1;
     (psc, arr)
 }
 
