@@ -9,13 +9,7 @@ use panic_halt as _;
 
 use cortex_m::asm;
 use cortex_m_rt::entry;
-use stm32f1xx_hal::{
-    pac,
-    prelude::*,
-    pwm::Channel,
-    time::U32Ext,
-    timer::{Tim2NoRemap, Timer},
-};
+use stm32f1xx_hal::{pac, prelude::*, pwm::Channel, timer::Tim2NoRemap};
 
 #[entry]
 fn main() -> ! {
@@ -51,8 +45,11 @@ fn main() -> ! {
     // let c3 = gpiob.pb8.into_alternate_push_pull(&mut gpiob.crh);
     // let c4 = gpiob.pb9.into_alternate_push_pull(&mut gpiob.crh);
 
-    let mut pwm =
-        Timer::new(p.TIM2, &clocks).pwm::<Tim2NoRemap, _, _, _>(pins, &mut afio.mapr, 1.khz());
+    //let mut pwm =
+    //    Timer::<_, 100_000>::new(p.TIM2, &clocks).pwm::<Tim2NoRemap, _, _>(pins, &mut afio.mapr, 1.millis());
+    let mut pwm = p
+        .TIM2
+        .pwm::<Tim2NoRemap, 100_000>(&clocks, pins, &mut afio.mapr, 1.millis());
 
     // Enable clock on each of the channels
     pwm.enable(Channel::C1);
@@ -62,12 +59,12 @@ fn main() -> ! {
     //// Operations affecting all defined channels on the Timer
 
     // Adjust period to 0.5 seconds
-    pwm.set_period(500.ms());
+    pwm.set_period(500.millis::<1, 100_000>());
 
     asm::bkpt();
 
     // Return to the original frequency
-    pwm.set_period(1.khz());
+    pwm.set_period(1.millis::<1, 100_000>());
 
     asm::bkpt();
 

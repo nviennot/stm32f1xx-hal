@@ -9,6 +9,9 @@ pub use crate::dma::WriteDma as _stm32_hal_dma_WriteDma;
 pub use crate::flash::FlashExt as _stm32_hal_flash_FlashExt;
 #[cfg(feature = "rtic")]
 pub use crate::fugit::MonoTimerExt as _stm32f4xx_hal_fugit_MonoTimerExt;
+pub use crate::fugit::PwmExt as _stm32f4xx_hal_fugit_PwmExt;
+pub use crate::fugit::SysCounterExt as _stm32f4xx_hal_fugit_SysCounterExt;
+pub use crate::fugit::TimerExt as _stm32f4xx_hal_fugit_TimerExt;
 pub use crate::gpio::GpioExt as _stm32_hal_gpio_GpioExt;
 pub use crate::hal::adc::OneShot as _embedded_hal_adc_OneShot;
 pub use crate::hal::digital::v2::StatefulOutputPin as _embedded_hal_digital_StatefulOutputPin;
@@ -17,6 +20,3 @@ pub use crate::hal::prelude::*;
 pub use crate::rcc::RccExt as _stm32_hal_rcc_RccExt;
 pub use crate::time::U32Ext as _stm32_hal_time_U32Ext;
 pub use fugit::ExtU32 as _fugit_ExtU32;
-//pub use crate::fugit::PwmExt as _stm32f4xx_hal_fugit_PwmExt;
-pub use crate::fugit::SysCounterExt as _stm32f4xx_hal_fugit_SysCounterExt;
-pub use crate::fugit::TimerExt as _stm32f4xx_hal_fugit_TimerExt;

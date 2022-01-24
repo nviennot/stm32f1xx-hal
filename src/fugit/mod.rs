@@ -2,9 +2,9 @@
 
 use crate::pac::RCC;
 use crate::rcc::Clocks;
-use core::convert::TryInto;
-//use crate::timer::General;
+use crate::timer::General;
 pub use crate::timer::{Error, Event, Instance};
+use core::convert::TryInto;
 
 pub mod delay;
 pub use delay::*;
@@ -19,8 +19,8 @@ pub mod monotonic;
 #[cfg(feature = "rtic")]
 pub use monotonic::*;
 
-//pub mod pwm;
-//pub use pwm::*;
+pub mod pwm;
+pub use pwm::*;
 
 mod hal_02;
 

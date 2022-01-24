@@ -140,6 +140,73 @@ pins_impl!(
     (P4), (Ch4), (C4);
 );
 
+pub struct C1;
+pub struct C2;
+pub struct C3;
+pub struct C4;
+
+pub struct PwmChannel<TIM, CHANNEL> {
+    _channel: PhantomData<CHANNEL>,
+    _tim: PhantomData<TIM>,
+}
+
+macro_rules! pwm_pin {
+    ($TIMX:ty, $C:ty, $ccr: ident, $bit:literal) => {
+        impl PwmChannel<$TIMX, $C> {
+            #[inline]
+            pub fn disable(&mut self) {
+                //NOTE(unsafe) atomic write with no side effects
+                unsafe { bb::clear(&(*<$TIMX>::ptr()).ccer, $bit) }
+            }
+
+            #[inline]
+            pub fn enable(&mut self) {
+                //NOTE(unsafe) atomic write with no side effects
+                unsafe { bb::set(&(*<$TIMX>::ptr()).ccer, $bit) }
+            }
+
+            #[inline]
+            pub fn get_duty(&self) -> u16 {
+                //NOTE(unsafe) atomic read with no side effects
+                unsafe { (*<$TIMX>::ptr()).$ccr.read().bits() as u16 }
+            }
+
+            /// If `0` returned means max_duty is 2^16
+            #[inline]
+            pub fn get_max_duty(&self) -> u16 {
+                //NOTE(unsafe) atomic read with no side effects
+                unsafe { ((*<$TIMX>::ptr()).arr.read().bits() as u16).wrapping_add(1) }
+            }
+
+            #[inline]
+            pub fn set_duty(&mut self, duty: u16) {
+                //NOTE(unsafe) atomic write with no side effects
+                unsafe { (*<$TIMX>::ptr()).$ccr.write(|w| w.bits(duty.into())) }
+            }
+        }
+
+        impl embedded_hal::PwmPin for PwmChannel<$TIMX, $C> {
+            type Duty = u16;
+
+            fn disable(&mut self) {
+                self.disable()
+            }
+            fn enable(&mut self) {
+                self.enable()
+            }
+            fn get_duty(&self) -> Self::Duty {
+                self.get_duty()
+            }
+            fn get_max_duty(&self) -> Self::Duty {
+                self.get_max_duty()
+            }
+            fn set_duty(&mut self, duty: Self::Duty) {
+                self.set_duty(duty)
+            }
+        }
+    };
+}
+
 #[cfg(any(feature = "stm32f100", feature = "stm32f103", feature = "connectivity",))]
 impl Timer<TIM1> {
     pub fn pwm<REMAP, P, PINS, T>(
@@ -239,73 +306,6 @@ where
     pub fn split(self) -> PINS::Channels {
         PINS::split()
     }
-}
-
-pub struct PwmChannel<TIM, CHANNEL> {
-    _channel: PhantomData<CHANNEL>,
-    _tim: PhantomData<TIM>,
-}
-
-pub struct C1;
-pub struct C2;
-pub struct C3;
-pub struct C4;
-
-macro_rules! pwm_pin {
-    ($TIMX:ty, $C:ty, $ccr: ident, $bit:literal) => {
-        impl PwmChannel<$TIMX, $C> {
-            #[inline]
-            pub fn disable(&mut self) {
-                //NOTE(unsafe) atomic write with no side effects
-                unsafe { bb::clear(&(*<$TIMX>::ptr()).ccer, $bit) }
-            }
-
-            #[inline]
-            pub fn enable(&mut self) {
-                //NOTE(unsafe) atomic write with no side effects
-                unsafe { bb::set(&(*<$TIMX>::ptr()).ccer, $bit) }
-            }
-
-            #[inline]
-            pub fn get_duty(&self) -> u16 {
-                //NOTE(unsafe) atomic read with no side effects
-                unsafe { (*<$TIMX>::ptr()).$ccr.read().bits() as u16 }
-            }
-
-            /// If `0` returned means max_duty is 2^16
-            #[inline]
-            pub fn get_max_duty(&self) -> u16 {
-                //NOTE(unsafe) atomic read with no side effects
-                unsafe { ((*<$TIMX>::ptr()).arr.read().bits() as u16).wrapping_add(1) }
-            }
-
-            #[inline]
-            pub fn set_duty(&mut self, duty: u16) {
-                //NOTE(unsafe) atomic write with no side effects
-                unsafe { (*<$TIMX>::ptr()).$ccr.write(|w| w.bits(duty.into())) }
-            }
-        }
-
-        impl embedded_hal::PwmPin for PwmChannel<$TIMX, $C> {
-            type Duty = u16;
-
-            fn disable(&mut self) {
-                self.disable()
-            }
-            fn enable(&mut self) {
-                self.enable()
-            }
-            fn get_duty(&self) -> Self::Duty {
-                self.get_duty()
-            }
-            fn get_max_duty(&self) -> Self::Duty {
-                self.get_max_duty()
-            }
-            fn set_duty(&mut self, duty: Self::Duty) {
-                self.set_duty(duty)
-            }
-        }
-    };
 }
 
 macro_rules! hal {
