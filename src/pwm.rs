@@ -251,8 +251,65 @@ pub struct C2;
 pub struct C3;
 pub struct C4;
 
+macro_rules! pwm_pin {
+    ($TIMX:ty, $C:ty, $ccr: ident, $bit:literal) => {
+        impl PwmChannel<$TIMX, $C> {
+            #[inline]
+            pub fn disable(&mut self) {
+                //NOTE(unsafe) atomic write with no side effects
+                unsafe { bb::clear(&(*<$TIMX>::ptr()).ccer, $bit) }
+            }
+
+            #[inline]
+            pub fn enable(&mut self) {
+                //NOTE(unsafe) atomic write with no side effects
+                unsafe { bb::set(&(*<$TIMX>::ptr()).ccer, $bit) }
+            }
+
+            #[inline]
+            pub fn get_duty(&self) -> u16 {
+                //NOTE(unsafe) atomic read with no side effects
+                unsafe { (*<$TIMX>::ptr()).$ccr.read().bits() as u16 }
+            }
+
+            /// If `0` returned means max_duty is 2^16
+            #[inline]
+            pub fn get_max_duty(&self) -> u16 {
+                //NOTE(unsafe) atomic read with no side effects
+                unsafe { ((*<$TIMX>::ptr()).arr.read().bits() as u16).wrapping_add(1) }
+            }
+
+            #[inline]
+            pub fn set_duty(&mut self, duty: u16) {
+                //NOTE(unsafe) atomic write with no side effects
+                unsafe { (*<$TIMX>::ptr()).$ccr.write(|w| w.bits(duty.into())) }
+            }
+        }
+
+        impl embedded_hal::PwmPin for PwmChannel<$TIMX, $C> {
+            type Duty = u16;
+
+            fn disable(&mut self) {
+                self.disable()
+            }
+            fn enable(&mut self) {
+                self.enable()
+            }
+            fn get_duty(&self) -> Self::Duty {
+                self.get_duty()
+            }
+            fn get_max_duty(&self) -> Self::Duty {
+                self.get_max_duty()
+            }
+            fn set_duty(&mut self, duty: Self::Duty) {
+                self.set_duty(duty)
+            }
+        }
+    };
+}
+
 macro_rules! hal {
-    ($($TIMX:ident: ($timX:ident),)+) => {
+    ($($TIMX:ty: ($timX:ident),)+) => {
         $(
             fn $timX<REMAP, P, PINS>(
                 mut tim: $TIMX,
@@ -333,49 +390,49 @@ macro_rules! hal {
 
                 fn enable(&mut self, channel: Self::Channel) {
                     match PINS::check_used(channel) {
-                        Channel::C1 => unsafe { bb::set(&(*$TIMX::ptr()).ccer, 0) },
-                        Channel::C2 => unsafe { bb::set(&(*$TIMX::ptr()).ccer, 4) },
-                        Channel::C3 => unsafe { bb::set(&(*$TIMX::ptr()).ccer, 8) },
-                        Channel::C4 => unsafe { bb::set(&(*$TIMX::ptr()).ccer, 12) }
+                        Channel::C1 => unsafe { bb::set(&(*<$TIMX>::ptr()).ccer, 0) },
+                        Channel::C2 => unsafe { bb::set(&(*<$TIMX>::ptr()).ccer, 4) },
+                        Channel::C3 => unsafe { bb::set(&(*<$TIMX>::ptr()).ccer, 8) },
+                        Channel::C4 => unsafe { bb::set(&(*<$TIMX>::ptr()).ccer, 12) }
                     }
                 }
 
                 fn disable(&mut self, channel: Self::Channel) {
                     match PINS::check_used(channel) {
-                        Channel::C1 => unsafe { bb::clear(&(*$TIMX::ptr()).ccer, 0) },
-                        Channel::C2 => unsafe { bb::clear(&(*$TIMX::ptr()).ccer, 4) },
-                        Channel::C3 => unsafe { bb::clear(&(*$TIMX::ptr()).ccer, 8) },
-                        Channel::C4 => unsafe { bb::clear(&(*$TIMX::ptr()).ccer, 12) },
+                        Channel::C1 => unsafe { bb::clear(&(*<$TIMX>::ptr()).ccer, 0) },
+                        Channel::C2 => unsafe { bb::clear(&(*<$TIMX>::ptr()).ccer, 4) },
+                        Channel::C3 => unsafe { bb::clear(&(*<$TIMX>::ptr()).ccer, 8) },
+                        Channel::C4 => unsafe { bb::clear(&(*<$TIMX>::ptr()).ccer, 12) },
                     }
                 }
 
                 fn get_duty(&self, channel: Self::Channel) -> Self::Duty {
                     match PINS::check_used(channel) {
-                        Channel::C1 => unsafe { (*$TIMX::ptr()).ccr1.read().ccr().bits() },
-                        Channel::C2 => unsafe { (*$TIMX::ptr()).ccr2.read().ccr().bits() },
-                        Channel::C3 => unsafe { (*$TIMX::ptr()).ccr3.read().ccr().bits() },
-                        Channel::C4 => unsafe { (*$TIMX::ptr()).ccr4.read().ccr().bits() },
+                        Channel::C1 => unsafe { (*<$TIMX>::ptr()).ccr1.read().ccr().bits() },
+                        Channel::C2 => unsafe { (*<$TIMX>::ptr()).ccr2.read().ccr().bits() },
+                        Channel::C3 => unsafe { (*<$TIMX>::ptr()).ccr3.read().ccr().bits() },
+                        Channel::C4 => unsafe { (*<$TIMX>::ptr()).ccr4.read().ccr().bits() },
                     }
                 }
 
                 fn set_duty(&mut self, channel: Self::Channel, duty: Self::Duty) {
                     match PINS::check_used(channel) {
-                        Channel::C1 => unsafe { (*$TIMX::ptr()).ccr1.write(|w| w.ccr().bits(duty)) },
-                        Channel::C2 => unsafe { (*$TIMX::ptr()).ccr2.write(|w| w.ccr().bits(duty)) },
-                        Channel::C3 => unsafe { (*$TIMX::ptr()).ccr3.write(|w| w.ccr().bits(duty)) },
-                        Channel::C4 => unsafe { (*$TIMX::ptr()).ccr4.write(|w| w.ccr().bits(duty)) },
+                        Channel::C1 => unsafe { (*<$TIMX>::ptr()).ccr1.write(|w| w.ccr().bits(duty)) },
+                        Channel::C2 => unsafe { (*<$TIMX>::ptr()).ccr2.write(|w| w.ccr().bits(duty)) },
+                        Channel::C3 => unsafe { (*<$TIMX>::ptr()).ccr3.write(|w| w.ccr().bits(duty)) },
+                        Channel::C4 => unsafe { (*<$TIMX>::ptr()).ccr4.write(|w| w.ccr().bits(duty)) },
                     }
                 }
 
                 /// If `0` returned means max_duty is 2^16
                 fn get_max_duty(&self) -> Self::Duty {
-                    unsafe { (*$TIMX::ptr()).arr.read().arr().bits().wrapping_add(1) }
+                    unsafe { (*<$TIMX>::ptr()).arr.read().arr().bits().wrapping_add(1) }
                 }
 
                 fn get_period(&self) -> Self::Time {
                     let clk = self.clk;
-                    let psc: u16 = unsafe{(*$TIMX::ptr()).psc.read().psc().bits()};
-                    let arr: u16 = unsafe{(*$TIMX::ptr()).arr.read().arr().bits()};
+                    let psc: u16 = unsafe{(*<$TIMX>::ptr()).psc.read().psc().bits()};
+                    let arr: u16 = unsafe{(*<$TIMX>::ptr()).arr.read().arr().bits()};
 
                     // Length in ms of an internal clock pulse
                     (clk.0 / u32(psc * arr)).hz()
@@ -387,126 +444,31 @@ macro_rules! hal {
 
                         let (psc, arr) = compute_arr_presc(period.into().0, clk.0);
                         unsafe {
-                            (*$TIMX::ptr()).psc.write(|w| w.psc().bits(psc));
-                            (*$TIMX::ptr()).arr.write(|w| w.arr().bits(arr.try_into().unwrap()));
+                            (*<$TIMX>::ptr()).psc.write(|w| w.psc().bits(psc));
+                            (*<$TIMX>::ptr()).arr.write(|w| w.arr().bits(arr.try_into().unwrap()));
                         }
                 }
             }
 
-            impl hal::PwmPin for PwmChannel<$TIMX, C1> {
-                type Duty = u16;
-
-                fn disable(&mut self) {
-                    unsafe { bb::clear(&(*$TIMX::ptr()).ccer, 0) }
-                }
-
-                fn enable(&mut self) {
-                    unsafe { bb::set(&(*$TIMX::ptr()).ccer, 0) }
-                }
-
-                fn get_duty(&self) -> u16 {
-                    unsafe { (*$TIMX::ptr()).ccr1.read().ccr().bits() }
-                }
-
-                /// If `0` returned means max_duty is 2^16
-                fn get_max_duty(&self) -> u16 {
-                    unsafe { (*$TIMX::ptr()).arr.read().arr().bits().wrapping_add(1) }
-                }
-
-                fn set_duty(&mut self, duty: u16) {
-                    unsafe { (*$TIMX::ptr()).ccr1.write(|w| w.ccr().bits(duty)) }
-                }
-            }
-
-            impl hal::PwmPin for PwmChannel<$TIMX, C2> {
-                type Duty = u16;
-
-                fn disable(&mut self) {
-                    unsafe { bb::clear(&(*$TIMX::ptr()).ccer, 4) }
-                }
-
-                fn enable(&mut self) {
-                    unsafe { bb::set(&(*$TIMX::ptr()).ccer, 4) }
-                }
-
-                fn get_duty(&self) -> u16 {
-                    unsafe { (*$TIMX::ptr()).ccr2.read().ccr().bits() }
-                }
-
-                /// If `0` returned means max_duty is 2^16
-                fn get_max_duty(&self) -> u16 {
-                    unsafe { (*$TIMX::ptr()).arr.read().arr().bits().wrapping_add(1) }
-                }
-
-                fn set_duty(&mut self, duty: u16) {
-                    unsafe { (*$TIMX::ptr()).ccr2.write(|w| w.ccr().bits(duty)) }
-                }
-            }
-
-            impl hal::PwmPin for PwmChannel<$TIMX, C3> {
-                type Duty = u16;
-
-                fn disable(&mut self) {
-                    unsafe { bb::clear(&(*$TIMX::ptr()).ccer, 8) }
-                }
-
-                fn enable(&mut self) {
-                    unsafe { bb::set(&(*$TIMX::ptr()).ccer, 8) }
-                }
-
-                fn get_duty(&self) -> u16 {
-                    unsafe { (*$TIMX::ptr()).ccr3.read().ccr().bits() }
-                }
-
-                /// If `0` returned means max_duty is 2^16
-                fn get_max_duty(&self) -> u16 {
-                    unsafe { (*$TIMX::ptr()).arr.read().arr().bits().wrapping_add(1) }
-                }
-
-                fn set_duty(&mut self, duty: u16) {
-                    unsafe { (*$TIMX::ptr()).ccr3.write(|w| w.ccr().bits(duty)) }
-                }
-            }
-
-            impl hal::PwmPin for PwmChannel<$TIMX, C4> {
-                type Duty = u16;
-
-                fn disable(&mut self) {
-                    unsafe { bb::clear(&(*$TIMX::ptr()).ccer, 12) }
-                }
-
-                fn enable(&mut self) {
-                    unsafe { bb::set(&(*$TIMX::ptr()).ccer, 12) }
-                }
-
-                fn get_duty(&self) -> u16 {
-                    unsafe { (*$TIMX::ptr()).ccr4.read().ccr().bits() }
-                }
-
-                /// If `0` returned means max_duty is 2^16
-                fn get_max_duty(&self) -> u16 {
-                    unsafe { (*$TIMX::ptr()).arr.read().arr().bits().wrapping_add(1) }
-                }
-
-                fn set_duty(&mut self, duty: u16) {
-                    unsafe { (*$TIMX::ptr()).ccr4.write(|w| w.ccr().bits(duty)) }
-                }
-            }
+            pwm_pin!($TIMX, C1, ccr1, 0);
+            pwm_pin!($TIMX, C2, ccr2, 4);
+            pwm_pin!($TIMX, C3, ccr3, 8);
+            pwm_pin!($TIMX, C4, ccr4, 12);
         )+
     }
 }
 
 #[cfg(any(feature = "stm32f100", feature = "stm32f103", feature = "connectivity",))]
 hal! {
-    TIM1: (tim1),
+    crate::pac::TIM1: (tim1),
 }
 
 hal! {
-    TIM2: (tim2),
-    TIM3: (tim3),
+    crate::pac::TIM2: (tim2),
+    crate::pac::TIM3: (tim3),
 }
 
 #[cfg(feature = "medium")]
 hal! {
-    TIM4: (tim4),
+    crate::pac::TIM4: (tim4),
 }

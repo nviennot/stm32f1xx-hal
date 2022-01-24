@@ -14,10 +14,10 @@ use panic_halt as _;
 #[rtic::app(device = stm32f1xx_hal::pac)]
 mod app {
     use stm32f1xx_hal::{
+        fugit::{CounterMs, Event},
         gpio::{gpioc::PC13, Output, PinState, PushPull},
         pac,
         prelude::*,
-        fugit::{CounterMs, Event},
     };
 
     #[shared]
