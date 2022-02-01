@@ -3,7 +3,7 @@
 use crate::pac::RCC;
 use crate::rcc::Clocks;
 use crate::timer::General;
-pub use crate::timer::{Error, Event, Instance};
+pub use crate::timer::{Error, Event, Instance, Channel, SysEvent};
 use core::convert::TryInto;
 
 pub mod delay;

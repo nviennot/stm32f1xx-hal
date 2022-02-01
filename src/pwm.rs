@@ -70,7 +70,7 @@ use crate::bb;
 use crate::gpio::{self, Alternate};
 use crate::time::Hertz;
 use crate::time::U32Ext;
-use crate::timer::{compute_arr_presc, General, Timer};
+use crate::timer::{compute_arr_presc, General, Timer, Channel};
 
 pub trait Pins<REMAP, P> {
     const C1: bool = false;
@@ -92,14 +92,6 @@ pub trait Pins<REMAP, P> {
     }
 
     fn split() -> Self::Channels;
-}
-
-#[derive(Clone, Copy, PartialEq)]
-pub enum Channel {
-    C1,
-    C2,
-    C3,
-    C4,
 }
 
 use crate::timer::sealed::{Ch1, Ch2, Ch3, Ch4, Remap};

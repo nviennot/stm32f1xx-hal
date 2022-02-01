@@ -1,4 +1,4 @@
-use super::{General, Timer};
+use super::{Channel, General, Timer};
 use crate::afio::MAPR;
 use crate::bb;
 use crate::rcc::Clocks;
@@ -12,7 +12,7 @@ use crate::pac::TIM1;
 use crate::pac::TIM4;
 use crate::pac::{TIM2, TIM3};
 
-pub use crate::pwm::{Channel, Pins, PwmChannel, C1, C2, C3, C4};
+pub use crate::pwm::{Pins, PwmChannel, C1, C2, C3, C4};
 use crate::timer::sealed::Remap;
 
 pub trait PwmExt<P, PINS>
