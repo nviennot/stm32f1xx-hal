@@ -335,6 +335,16 @@ macro_rules! hal {
                     timer
                 }
 
+                /// Starts the timer with a specific tick frequency
+                pub fn start_with_tick_freq<T>(self, timeout: T) -> CountDownTimer<$TIMX>
+                where
+                    T: Into<Hertz>,
+                {
+                    let psc = (self.clk.0 / timeout.into().0).checked_sub(1).unwrap();
+                    let psc = u16(psc).unwrap();
+                    self.start_raw(psc, 1)
+                }
+
                 $(
                     /// Starts timer in count down mode at a given frequency and additionally configures the timers master mode
                     pub fn start_master<T>(self, timeout: T, mode: crate::pac::$master_timbase::cr2::MMS_A) -> CountDownTimer<$TIMX>
@@ -388,9 +398,7 @@ macro_rules! hal {
 
                     self.tim.psc.write(|w| w.psc().bits(psc) );
 
-                    // TODO: Remove this `allow` once this field is made safe for stm32f100
-                    #[allow(unused_unsafe)]
-                    self.tim.arr.write(|w| unsafe { w.arr().bits(arr) });
+                    self.set_arr(arr);
 
                     // Trigger an update event to load the prescaler value to the clock
                     self.reset();
@@ -407,6 +415,13 @@ macro_rules! hal {
                 /// Retrieves the value of the auto-reload register.
                 pub fn arr(&self) -> u16 {
                     self.tim.arr.read().arr().bits()
+                }
+
+                /// Sets the value of the auto-reload register.
+                pub fn set_arr(&mut self, arr: u16) {
+                    // TODO: Remove this `allow` once this field is made safe for stm32f100
+                    #[allow(unused_unsafe)]
+                    self.tim.arr.write(|w| unsafe { w.arr().bits(arr) });
                 }
 
                 /// Retrieves the current timer counter value.
